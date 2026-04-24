@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageStat
 
 
 def parse_hex_color(value: str) -> tuple[int, int, int]:
@@ -16,8 +16,22 @@ def parse_hex_color(value: str) -> tuple[int, int, int]:
     return tuple(int(cleaned[index:index + 2], 16) for index in (0, 2, 4))
 
 
+def estimate_border_color(image: Image.Image, sample: int = 3) -> tuple[int, int, int]:
+    rgba = image.convert("RGBA")
+    sample = max(1, min(sample, rgba.width // 2, rgba.height // 2))
+    mask = Image.new("L", rgba.size, 0)
+    mask_pixels = mask.load()
+    for y in range(rgba.height):
+        for x in range(rgba.width):
+            if x < sample or y < sample or x >= rgba.width - sample or y >= rgba.height - sample:
+                mask_pixels[x, y] = 255
+    mean = ImageStat.Stat(rgba.convert("RGB"), mask).mean
+    return tuple(int(round(channel)) for channel in mean[:3])
+
+
 def remove_chroma_key(image: Image.Image, bg: tuple[int, int, int], tolerance: int) -> Image.Image:
     rgba = image.convert("RGBA")
+    sampled_bg = estimate_border_color(rgba)
     pixels = rgba.load()
     alpha = Image.new("L", rgba.size, 255)
     alpha_pixels = alpha.load()
@@ -25,8 +39,9 @@ def remove_chroma_key(image: Image.Image, bg: tuple[int, int, int], tolerance: i
     for y in range(rgba.height):
         for x in range(rgba.width):
             r, g, b, _ = pixels[x, y]
-            distance = abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2])
-            if distance <= tolerance:
+            explicit_distance = abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2])
+            sampled_distance = abs(r - sampled_bg[0]) + abs(g - sampled_bg[1]) + abs(b - sampled_bg[2])
+            if min(explicit_distance, sampled_distance) <= tolerance:
                 alpha_pixels[x, y] = 0
 
     rgba.putalpha(alpha)
@@ -45,8 +60,12 @@ def crop_cell(sheet: Image.Image, col: int, row: int, cols: int, rows: int) -> I
     )
 
 
+def alpha_bbox(image: Image.Image) -> tuple[int, int, int, int] | None:
+    return image.convert("RGBA").getchannel("A").getbbox()
+
+
 def trim_to_content(image: Image.Image, padding: int) -> Image.Image:
-    bbox = image.getbbox()
+    bbox = alpha_bbox(image)
     if not bbox:
         return image
     left = max(0, bbox[0] - padding)
@@ -56,12 +75,60 @@ def trim_to_content(image: Image.Image, padding: int) -> Image.Image:
     return image.crop((left, top, right, bottom))
 
 
-def normalize_frame(image: Image.Image, size: int, padding: int, trim: bool) -> Image.Image:
-    if trim:
-        image = trim_to_content(image, padding)
-    image.thumbnail((size - padding * 2, size - padding * 2), Image.Resampling.LANCZOS)
+def shared_animation_layout(
+    frames: list[Image.Image],
+    size: int,
+    padding: int,
+) -> tuple[float, tuple[float, float], list[tuple[int, int, int, int] | None]]:
+    bboxes = [alpha_bbox(frame) for frame in frames]
+    content_boxes = [bbox for bbox in bboxes if bbox]
+    if not content_boxes:
+        return 1.0, (size / 2, size / 2), bboxes
+
+    max_width = max(right - left for left, _, right, _ in content_boxes)
+    max_height = max(bottom - top for _, top, _, bottom in content_boxes)
+    max_width = max(1, max_width)
+    max_height = max(1, max_height)
+    scale = min((size - padding * 2) / max_width, (size - padding * 2) / max_height, 1.0)
+    anchor = (size / 2, size / 2)
+    return scale, anchor, bboxes
+
+
+def alpha_composite_clipped(canvas: Image.Image, image: Image.Image, position: tuple[int, int]) -> None:
+    x, y = position
+    left = max(0, x)
+    top = max(0, y)
+    right = min(canvas.width, x + image.width)
+    bottom = min(canvas.height, y + image.height)
+    if left >= right or top >= bottom:
+        return
+    crop = image.crop((left - x, top - y, right - x, bottom - y))
+    canvas.alpha_composite(crop, (left, top))
+
+
+def normalize_frame(
+    image: Image.Image,
+    size: int,
+    scale: float,
+    anchor: tuple[float, float],
+    bbox: tuple[int, int, int, int] | None,
+    trim: bool,
+) -> Image.Image:
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    canvas.alpha_composite(image, ((size - image.width) // 2, (size - image.height) // 2))
+    if not bbox:
+        return canvas
+
+    working = trim_to_content(image, 0) if trim else image
+    resized = working.resize(
+        (max(1, round(working.width * scale)), max(1, round(working.height * scale))),
+        Image.Resampling.LANCZOS,
+    )
+    source_anchor = ((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2)
+    if trim:
+        source_anchor = (source_anchor[0] - bbox[0], source_anchor[1] - bbox[1])
+    x = round(anchor[0] - source_anchor[0] * scale)
+    y = round(anchor[1] - source_anchor[1] * scale)
+    alpha_composite_clipped(canvas, resized, (x, y))
     return canvas
 
 
@@ -131,13 +198,19 @@ def main() -> None:
     frames_dir.mkdir(parents=True, exist_ok=True)
 
     source = Image.open(args.input).convert("RGBA")
-    frames: list[Image.Image] = []
+    keyed_frames: list[Image.Image] = []
     total = args.cols * args.rows
 
     for index in range(total):
         cell = crop_cell(source, index % args.cols, index // args.cols, args.cols, args.rows)
         keyed = remove_chroma_key(cell, args.bg, args.tolerance)
-        frame = normalize_frame(keyed, args.size, args.padding, trim=not args.no_trim)
+        keyed_frames.append(keyed)
+
+    scale, anchor, bboxes = shared_animation_layout(keyed_frames, args.size, args.padding)
+    frames: list[Image.Image] = []
+
+    for index, keyed in enumerate(keyed_frames):
+        frame = normalize_frame(keyed, args.size, scale, anchor, bboxes[index], trim=not args.no_trim)
         frame.save(frames_dir / f"{args.frame_prefix}-{index + 1:03d}.png")
         frames.append(frame)
 

@@ -16,9 +16,27 @@ Preferred workflow:
    another color if the user explicitly asks for it.
 3. Keep every icon centered in its own equal cell with large spacing.
 4. Avoid shadows touching neighboring cells or image borders.
-5. Crop by equal grid cells.
-6. Remove the flat background with chroma-key tolerance.
+5. Slice the sheet into equal grid cells before any chroma-key removal.
+6. Remove the flat background per cell with chroma-key tolerance.
 7. Save transparent PNGs and a preview grid.
+
+## Hard Rules for Sprite Processing
+
+Follow these rules whenever processing generated AI sprite sheets. They prevent
+single-frame drift, jitter, and bad crops:
+
+- Always slice the sheet into cells first, then apply chroma-key removal to each
+  individual cell. Do not key-out the whole sheet before slicing.
+- When cropping a transparent sprite, compute the content bbox from alpha only:
+  `image.getchannel("A").getbbox()`. Do not use `image.getbbox()` on RGBA.
+- For an animation strip or a group of frames of the same character/object, use
+  shared scale and shared anchor across all frames. Do not resize each frame
+  independently.
+- Do not trust AI chroma-key backgrounds to match one exact hex value. Use
+  threshold matching near the requested background and/or sample background
+  color from each cell's border.
+- If one frame looks misaligned, inspect the alpha bbox for every frame before
+  trusting `image.size` or the preview by eye.
 
 This workflow is good for:
 
@@ -121,6 +139,10 @@ The script writes:
 
 Use GIF output for previewing timing and motion. For production animation in an
 app/game, prefer the transparent PNG frames or `spritesheet-transparent.png`.
+
+Implementation note: the processing script must preserve animation consistency
+by slicing first, keying per cell, computing bbox from alpha, and normalizing the
+whole frame group with shared scale and anchor.
 
 ## Review
 
