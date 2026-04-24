@@ -12,7 +12,8 @@ together and cropped cleanly for an app.
 Preferred workflow:
 
 1. Generate one sheet with a clear `3 columns x 2 rows` grid.
-2. Use a flat chroma-key background, usually hot pink `#ff3bbd`, cyan, or green.
+2. Use a flat hot-pink chroma-key background `#ff3bbd` by default. Only use
+   another color if the user explicitly asks for it.
 3. Keep every icon centered in its own equal cell with large spacing.
 4. Avoid shadows touching neighboring cells or image borders.
 5. Crop by equal grid cells.
@@ -34,14 +35,15 @@ This workflow is good for:
 
 ## Prompt Pattern
 
-For a 3x2 sheet:
+For a 3x2 sheet, use hot pink by default:
 
 ```text
 Create a single asset sheet for a mobile app. Exact layout: 3 columns by 2 rows,
 six separate icons, each centered in its own equal cell with large empty spacing
 between cells. Use a solid flat hot-pink chroma-key background (#ff3bbd) across
-the entire image, no shadows touching cell borders, no text labels outside icons,
-no watermark. Icon 1: ...
+the entire image. The background must be one uniform color, with no gradient,
+texture, lighting, shadows, vignette, or pattern. No shadows touching cell
+borders, no text labels outside icons, no watermark. Icon 1: ...
 Icon 2: ...
 Icon 3: ...
 Icon 4: ...
@@ -77,16 +79,19 @@ The script writes:
 
 ## Sprite Sheet Workflow
 
-For sprite sheets, generate a 3x2 grid of sequential animation frames with the
-same flat chroma-key background:
+For sprite sheets, generate a 3x2 grid of sequential animation frames with a
+flat hot-pink chroma-key background unless the user explicitly requested another
+background color:
 
 ```text
 Create a sprite sheet for a mobile app animation. Exact layout: 3 columns by 2 rows,
 6 sequential frames of the same character/object animation. Use a solid flat
-hot-pink chroma-key background (#ff3bbd). The subject must stay the same size,
-same style, centered in each cell, with large spacing from cell borders. Keep all
-pixels inside the central 60% of each cell and leave at least 20% empty margin
-on every side. No watermark, no text labels. Polished app/game style.
+hot-pink chroma-key background (#ff3bbd) across the entire image. The background
+must be one uniform color, with no gradient, texture, lighting, shadows,
+vignette, or pattern. The subject must stay the same size, same style, centered
+in each cell, with large spacing from cell borders. Keep all pixels inside the
+central 60% of each cell and leave at least 20% empty margin on every side. No
+watermark, no text labels. Polished app/game style.
 Frame 1: ...
 Frame 2: ...
 ...
