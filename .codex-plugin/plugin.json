@@ -1,0 +1,43 @@
+{
+  "name": "spritesheet-creator",
+  "version": "0.1.0",
+  "description": "Generate 3x2 chroma-key sprite sheets, remove backgrounds, crop transparent frames, and export GIF previews.",
+  "author": {
+    "name": "Local Codex Workspace",
+    "email": "local@example.com",
+    "url": "https://example.com"
+  },
+  "homepage": "https://example.com/spritesheet-creator",
+  "repository": "https://example.com/spritesheet-creator",
+  "license": "MIT",
+  "keywords": [
+    "spritesheet",
+    "animation",
+    "chroma-key",
+    "gif",
+    "frames"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "SpriteSheet Creator",
+    "shortDescription": "Create 3x2 sprite sheets, remove chroma-key backgrounds, crop frames, and export GIFs.",
+    "longDescription": "Workflow and scripts for generating 3x2 animation sprite sheets on flat chroma-key backgrounds, then cropping grid cells, removing the background, creating transparent spritesheets, exporting individual PNG frames, and building GIF previews. Also includes an optional helper for batch icon sheets.",
+    "developerName": "Local Codex Workspace",
+    "category": "Design",
+    "capabilities": [
+      "Image Generation",
+      "Asset Processing",
+      "Spritesheets",
+      "Write"
+    ],
+    "websiteURL": "https://example.com/spritesheet-creator",
+    "privacyPolicyURL": "https://example.com/privacy",
+    "termsOfServiceURL": "https://example.com/terms",
+    "defaultPrompt": [
+      "Create a 3x2 sprite sheet and GIF.",
+      "Turn this 3x2 sprite sheet into frames.",
+      "Make a game attack animation sheet on green."
+    ],
+    "brandColor": "#10ADA6"
+  }
+}
